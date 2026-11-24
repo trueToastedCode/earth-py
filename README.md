@@ -29,6 +29,9 @@ python3 earth_py.py my.workflow.json proxies.txt            # with SOCKS5 proxie
 python3 earth_py.py my.workflow.json --proxies proxies.txt --out ~/Desktop/exports
 ```
 
+With proxies, run `ulimit -n 8192` in the same Terminal window first, otherwise macOS's limit of
+256 open files can make downloads fail (see [Open files limit](#open-files-limit-important-with-many-proxies)).
+
 Then unzip the export and fill `tiles/` from this folder's cache (the command is printed at the end):
 
 ```bash
