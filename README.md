@@ -91,6 +91,26 @@ limiter and the proxies, and go out directly. Only the metadata uses the proxies
 both through the proxies, as the webapp's README describes. The downloaded bytes are the same
 either way.
 
+## Open files limit (important with many proxies)
+
+Every network connection counts as an open file. The most earth-py has open at once is about:
+
+    30 + min(400, 4 × proxies, tiles to download) + 32 × proxies
+
+With the direct connection that is about 70; with 95 proxies it is about 3,450.
+macOS allows only 256 per Terminal session by default. Above that, downloads fail with
+`Errno 24 Too many open files`.
+
+Before a run with proxies, raise the limit in the same Terminal window (it lasts until you
+close it):
+
+```bash
+ulimit -n 8192
+python3 earth_py.py my.workflow.json proxies.txt
+```
+
+Pick a value above the number from the formula. `ulimit -n` alone shows the current limit.
+
 ## Speed
 
 On a 4-core Mac, the 185-tile Paris workflow takes about 45 s from an empty cache: about 25 s for
