@@ -2,16 +2,24 @@
 
 A Python 3 port of one job of the Earth Tile Library webapp (`earth-rea`): take a workflow
 export (`*.workflow.json`), download its tiles, and export them as **3D Tiles 1.1 - one GLB per
-tile**, package **Small ZIP + script**. The output is the same as the webapp's:
+tile**, package **Small ZIP + script**. The result is equivalent to the webapp's:
 
-- the files in the ZIP (`tileset.json`, `location.json`, `footprint.geojson`, `README.txt`,
-  `tiles.txt`, `fill-tiles.sh`) are byte-identical to a webapp export of the same selection;
-  only the `generated` time stamp in `location.json` differs, as it does between two webapp exports.
-- the GLB files that `fill-tiles.sh` copies into `tiles/` are byte-identical to the webapp's GLB
-  cache (geometry, normals, UVs, texture PNGs, JSON, metadata).
+- **Raw downloads**: byte-identical (same requests, same responses).
+- **GLBs**: the same structure, the same triangles (indices), normals, texture coordinates and
+  texture pixels.
+  - Positions and tile centres can differ in the last bit, because Python's `math` module rounds
+    a little differently from the webapp's Rust/V8 maths. That is at most one float32 step,
+    measured up to 0.008 mm.
+  - The PNG textures are compressed with Python's `zlib`: the same pixels, but different (and
+    ~13 % smaller) bytes.
+- **Export**:
+  - `README.txt`, `tiles.txt`, `fill-tiles.sh` and `footprint.geojson` are identical to the
+    webapp's.
+  - `tileset.json` and `location.json` hold the same structure and values, apart from those
+    nanometre-scale differences and number formatting (`5.0` vs `5`).
 
-Standard library only (Python 3.7+). It doesn't use a native converter: the tile decoder, the
-crunch texture decoder, the trigonometry and even the PNG compression are ports in plain Python.
+Standard library only, Python 3.8+. No native code. Google's tile format and the crunch
+texture decoder are implemented in plain Python.
 
 ## Use
 
@@ -29,8 +37,8 @@ cd earth-3dtiles-xxxxxxxx && ./fill-tiles.sh ~/Desktop/earth-py
 
 `fill-tiles.sh` is the webapp's script unchanged. It finds the cache in `<folder>/library/glb-v2`,
 and uses APFS clones on macOS (instant, no extra space). `--link` creates symlinks instead.
-The README inside the ZIP names `~/Downloads/earth-rea`, word for word like the webapp's. When the
-tiles come from earth-py, pass the earth-py folder instead.
+The README inside the ZIP names `~/Downloads/earth-rea` like the webapp's. When the tiles come
+from earth-py, pass the earth-py folder instead.
 
 ## What it does
 
@@ -61,7 +69,6 @@ Already downloaded or converted tiles are reused, so running again is fast.
 | `--jobs N` | all cores (`CONVERT_THREADS`) | conversion processes |
 | `--delay-ms`, `--burst`, `--pause-s` | 100, 1000, 60 (`DOWNLOAD_DELAY_MS`, `DOWNLOAD_BURST`, `DOWNLOAD_PAUSE_S`) | request limits, per proxy |
 | `--skip-missing` | off | export even if some tiles couldn't be downloaded |
-| `--fast-png` | off | stdlib zlib for textures: several times faster conversion, same pixels, but GLBs no longer byte-identical |
 
 The environment variables, or a `.env` file next to `earth_py.py`, work as in the webapp.
 
@@ -86,39 +93,59 @@ either way.
 
 ## Speed
 
-On a 4-core Mac, the 185-tile Paris workflow takes about 1 min 40 s from an empty cache:
-about 25 s for the downloads and about 75 s for the conversion. The PNG compression is about
-two thirds of the conversion time: a pure Python port of zlib-rs, needed for identical bytes.
-`--fast-png` cuts most of that.
+On a 4-core Mac, the 185-tile Paris workflow takes about 45 s from an empty cache: about 25 s for
+the downloads and about 15 s for the conversion. With a filled cache it takes under a second.
 
-## How exactness is achieved
+## Comparing with the webapp
 
-The webapp in Docker converts with its native Rust module (`re/native`). The JavaScript parts
-(tileset, location info) run on Node 20.
+`tools/compare_with_webapp.py` checks earth-py's output against the webapp's.
 
-| Part | Port of |
+`tiles` compares the GLB caches:
+
+```bash
+python3 tools/compare_with_webapp.py tiles --webapp ~/Downloads/earth-rea --workflow my.workflow.json
+```
+
+Structure, indices, materials and texture pixels must be identical. Positions may differ by up to
+0.1 mm, normals by up to 1e-5, texture coordinates by up to 1e-6 and tile centres by up to 1 µm.
+The tool prints the largest differences it found.
+
+`export` compares two exports (ZIPs or unzipped folders):
+
+```bash
+python3 tools/compare_with_webapp.py export earth-3dtiles-xxxx.zip webapp-export.zip
+```
+
+The text files must be identical. The numbers in the JSON files may differ by at most 1 µm (or
+1e-9 relative), and the `generated` time in `location.json` is ignored.
+
+Results for the Paris workflow (185 tiles) and a test with 13 tiles across L17–L20, 10 of them
+without geometry:
+
+- **Triangles, normals, texture coordinates and pixels**: all identical.
+- **Positions**: at most 0.008 mm apart (one float32 step).
+- **Tile centres**: at most 2 nm apart.
+- **Clipping from higher ancestors**: 12 cases checked against the webapp's native converter,
+  with identical triangles.
+
+In theory, a vertex lying exactly on a tile edge could fall on the other side of the clip because
+of the last-bit rounding. That would make the cut differ by a nanometre-thin sliver. It didn't
+happen in the cases tested.
+
+## Layout
+
+| File | What it is |
 |---|---|
-| `earthpy/decode.py` | `re/native/src/decode.rs` + `pb.rs` (NodeData protobuf) |
-| `earthpy/crn.py` | crunch `crn_decomp.h` DXT1 path (texture format 6) |
-| `earthpy/fdlibm.py` | Rust `libm` 0.2.16 `sin`/`cos`/`asin`/`atan2` (what the converter uses), bit-exact |
-| `earthpy/v8math.py` | V8 11.3's `Math.cos` (fdlibm port in `ieee754.cc`), bit-exact |
-| `earthpy/zrs.py` | `zlib-rs` 0.6.8 level 6 (`deflate_medium`) driven like flate2's `ZlibEncoder` |
-| `earthpy/png.py`, `glb.py` | `texture.rs`, `glb.rs` (incl. ancestor cut / clip) |
-| `earthpy/bulk.py` | Google's minified bulk decoder (`decode-resource.js`, command 0), quirks included |
-| `earthpy/rocktree.py` | `utils.js`, `locate()` in `convert-lat-long-to-octant.js` |
-| `earthpy/net.py` | `webapp/lib/proxies.js`, `webapp/lib/limiter.js` + a small SOCKS5 client |
-| `earthpy/tileset.py`, `location.py` | `tileset.js`, `location-info.js` (JS number formatting in `jsfmt.py`) |
-| `earthpy/pipeline.py` | `runDownload`, `runFix`, `export_3dtiles.js`, `addFillScript` |
+| `earth_py.py`, `earthpy/cli.py` | command line |
+| `earthpy/pipeline.py` | download, no-geometry fix, conversion, export (`runDownload`, `runFix`, `export_3dtiles.js`, `addFillScript`) |
+| `earthpy/decode.py` | NodeData protobuf decoder (port of `re/native/src/decode.rs`) |
+| `earthpy/crn.py` | crunch texture decoder, DXT1 path (port of `crn_decomp.h`) |
+| `earthpy/png.py`, `earthpy/glb.py` | DXT1 -> PNG, meshes -> GLB incl. ancestor cut / clip (`texture.rs`, `glb.rs`) |
+| `earthpy/bulk.py` | bulk metadata decoder, reproducing Google's minified decoder (`decode-resource.js`) |
+| `earthpy/rocktree.py` | tile lookup and URLs (`utils.js`, `locate()`) |
+| `earthpy/net.py` | SOCKS5 client, proxy list (`proxies.js`), request limiter (`limiter.js`) |
+| `earthpy/tileset.py`, `earthpy/location.py` | `tileset.json`, `location.json`, `footprint.geojson`, `README.txt` |
 | `earthpy/templates/fill-tiles.sh` | copied unchanged from the webapp |
-
-These were checked against the webapp:
-
-- 300,000 random arguments against the Rust `libm` crate; 200,000 against Node 20's `Math.cos`
-  and `Math.hypot`.
-- 61 texture streams from the webapp's GLB cache.
-- 185 Paris tiles plus 13 tiles with mixed levels (L17–L20), 10 of them without geometry.
-  Raw downloads, GLBs and metadata are identical, and the export files match a webapp export of
-  the same workflow.
-- Two clip cases checked against the native converter.
+| `tools/compare_with_webapp.py` | comparison with the webapp's output |
 
 The data belongs to Google; check Google's terms before using or sharing it.

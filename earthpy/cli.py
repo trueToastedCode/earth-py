@@ -55,7 +55,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="earth_py.py",
         description="Download the tiles of an Earth Tile Library workflow and export them as 3D Tiles 1.1 "
-                    "(one GLB per tile), package \"Small ZIP + script\" - the same files the webapp exports.")
+                    "(one GLB per tile), package \"Small ZIP + script\", like the webapp's export.")
     ap.add_argument("workflow", help="workflow file exported from the webapp (*.workflow.json)")
     ap.add_argument("proxies", nargs="?", help="optional SOCKS5 proxy list (one per line: user:password@host:port or "
                                               "host:port), same format as the webapp's Proxy panel")
@@ -73,9 +73,6 @@ def main(argv=None):
                     help="length of that pause in seconds; also the longest backoff of a failing proxy (default 60)")
     ap.add_argument("--skip-missing", action="store_true",
                     help="export even if some tiles could not be downloaded (they are left out)")
-    ap.add_argument("--fast-png", action="store_true",
-                    help="compress textures with Python's zlib: much faster, same pixels, but the GLB files are "
-                         "no longer byte-identical to the webapp's")
     args = ap.parse_args(argv)
 
     t_start = time.time()
@@ -161,8 +158,8 @@ def main(argv=None):
             print("\n  Exporting without %d tile%s that could not be downloaded (--skip-missing)." % (n, "" if n == 1 else "s"))
 
         # 3. convert
-        print("\n3/4 Convert to GLB (%d processes%s)" % (max(1, args.jobs), ", fast PNG" if args.fast_png else ""))
-        skipped, failures = pipeline.convert(have, lib, args.jobs, not args.fast_png, force=no_geo, cancel=cancel)
+        print("\n3/4 Convert to GLB (%d processes)" % max(1, args.jobs))
+        skipped, failures = pipeline.convert(have, lib, args.jobs, force=no_geo, cancel=cancel)
         if failures:
             for p, e in list(failures.items())[:10]:
                 print("  failed: %s: %s" % (p, e))
@@ -181,7 +178,7 @@ def main(argv=None):
         print("\nDone in %s. To fill tiles/ after unzipping, run in the unzipped folder:" % pipeline._fmt_dur(time.time() - t_start))
         project = os.path.dirname(lib.root) if os.path.basename(lib.root) == "library" else lib.glb_dir
         print("  ./fill-tiles.sh %s" % _quote(project))
-        print("(The README in the ZIP names ~/Downloads/earth-rea, exactly like the webapp's export; use the path above.)")
+        print("(The README in the ZIP names ~/Downloads/earth-rea, like the webapp's export; use the path above.)")
         return 0
     except KeyboardInterrupt:
         cancel.set()

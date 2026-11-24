@@ -9,10 +9,14 @@ from collections import OrderedDict
 from concurrent.futures import Future
 
 from . import bulk as B
-from .jsfmt import js_num
 
 URL_PREFIX = "https://kh.google.com/rt/earth/"
 CACHE_MAX_ENTRIES = 4000
+
+
+def js_num(v):
+    """A number as JavaScript writes it into a URL (integers without ".0")."""
+    return str(int(v)) if float(v).is_integer() else repr(float(v))
 
 
 class RockTree:

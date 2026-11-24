@@ -1,15 +1,17 @@
 """
-Decoded node -> binary glTF (.glb) for 3D Tiles, byte-identical to the webapp's native converter
-(re/native/src/glb.rs, itself a port of re/exporter/lib/glb-writer.js). Includes the fallback for
-tiles without textured geometry: geometry cut from the nearest usable ancestor tile.
+Decoded node -> binary glTF (.glb) for 3D Tiles: the same structure, geometry and texture pixels
+as the webapp's converter (re/native/src/glb.rs, a port of re/exporter/lib/glb-writer.js).
+Includes the fallback for tiles without textured geometry: geometry cut from the nearest usable
+ancestor tile. Floating point maths uses Python's math module, so values can differ from the
+webapp's in the last bit (nanometres); the PNGs use Python's zlib (same pixels, other bytes).
 """
 
+import json
 import math
 import struct
 from array import array
 
-from . import decode, fdlibm, png
-from .jsfmt import js_num
+from . import decode, png
 from .octant import box_of_path
 
 GLB_VERSION = 2
@@ -19,9 +21,14 @@ WGS84_E2 = 0.0066943799901413165
 DEG = 180.0 / math.pi
 SKIP_NO_ANCESTOR = "no textured geometry, and no usable ancestor tile in the library"
 
-_asin, _atan2, _sin, _cos, _hypot3 = fdlibm.asin, fdlibm.atan2, fdlibm.sin, fdlibm.cos, fdlibm.hypot3
+_atan2, _sin, _cos, _hypot = math.atan2, math.sin, math.cos, math.hypot
 _sqrt = math.sqrt
 _NAN = float("nan")
+
+
+def _asin(x):
+    """math.asin, but NaN instead of an exception outside [-1, 1] (like the C/JS asin)."""
+    return math.asin(x) if -1.0 <= x <= 1.0 else _NAN
 
 
 class Tile:
@@ -32,7 +39,8 @@ class Tile:
 
 
 def _arr(v):
-    return "[" + ",".join(js_num(x) for x in v) + "]"
+    """JSON array of numbers (null for non-finite values, like JSON.stringify)."""
+    return json.dumps([x if math.isfinite(x) else None for x in v], separators=(",", ":"))
 
 
 def sphere_to_wgs84(x, y, z):
@@ -95,7 +103,7 @@ def mesh_piece(m, mesh, verts, tris):
         gx = nx * m0 + ny * m4 + nz * m8
         gy = nx * m1 + ny * m5 + nz * m9
         gz = nx * m2 + ny * m6 + nz * m10
-        h = _hypot3(gx, gy, gz)
+        h = _hypot(gx, gy, gz)
         ln = 1.0 if (h == 0.0 or h != h) else h
         ng[j3] = gx / ln
         ng[j3 + 1] = gy / ln
@@ -114,24 +122,24 @@ def has_meshes(node):
     return decode.has_meshes(node)
 
 
-def node_to_glb(node, exact_png=True):
+def node_to_glb(node):
     m = node.matrix
     pieces = [mesh_piece(m, mesh, range(len(mesh.vertices) // 8), strip_to_triangles(mesh)) for mesh in node.meshes]
-    return build_glb(pieces, exact_png)
+    return build_glb(pieces)
 
 
-def _texture_image(mesh, exact_png):
+def _texture_image(mesh):
     tex = mesh.texture
     if tex is None:
         raise ValueError("mesh has no texture")
     if tex.format == 1:
         return "image/jpeg", tex.bytes, tex.width
     if tex.format == 6:
-        return "image/png", png.png_from_dxt1(tex.bytes, tex.width, tex.height, exact_png), tex.width
+        return "image/png", png.png_from_dxt1(tex.bytes, tex.width, tex.height), tex.width
     raise ValueError("unknown textureFormat %d" % tex.format)
 
 
-def build_glb(pieces, exact_png=True):
+def build_glb(pieces):
     inf = float("inf")
     mn = [inf, inf, inf]
     mx = [-inf, -inf, -inf]
@@ -218,7 +226,7 @@ def build_glb(pieces, exact_png=True):
         accessors.append('{"bufferView":%d,"componentType":%d,"count":%d,"type":"SCALAR"}'
                          % (v_idx, 5125 if use32 else 5123, len(tris)))
         acc_idx = len(accessors) - 1
-        mime, img, width = _texture_image(pc.mesh, exact_png)
+        mime, img, width = _texture_image(pc.mesh)
         max_tex_w = max(max_tex_w, width)
         v_img = add(img)
         images.append('{"bufferView":%d,"mimeType":"%s"}' % (v_img, mime))
@@ -382,7 +390,7 @@ def ancestor_pieces(ancestor, ancestor_path, tile_path, box):
     return pieces or None
 
 
-def cut_from_ancestors(tile_path, box, load, exact_png=True):
+def cut_from_ancestors(tile_path, box, load):
     """(Tile, ancestor path) from the nearest usable ancestor; load(path) -> raw bytes or None."""
     a = tile_path[:-1]
     while len(a) >= 2:
@@ -394,18 +402,18 @@ def cut_from_ancestors(tile_path, box, load, exact_png=True):
                 raise ValueError("tile %s: %s" % (a, e))
             pieces = ancestor_pieces(node, a, tile_path, box)
             if pieces:
-                return build_glb(pieces, exact_png), a
+                return build_glb(pieces), a
         a = a[:-1]
     return None
 
 
-def convert_raw_with(raw, path, load, exact_png=True):
+def convert_raw_with(raw, path, load):
     """Convert a stored tile. Returns Tile, or a str (the reason) when the tile is left out."""
     node = decode.decode_node(raw)
     if decode.has_meshes(node):
-        return node_to_glb(node, exact_png)
+        return node_to_glb(node)
     box = box_of_path(path)
     if box is None:
         raise ValueError("invalid tile path")
-    r = cut_from_ancestors(path, box, load, exact_png)
+    r = cut_from_ancestors(path, box, load)
     return r[0] if r else SKIP_NO_ANCESTOR

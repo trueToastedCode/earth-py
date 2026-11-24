@@ -8,8 +8,8 @@ See README.md, or run with --help.
 
 import sys
 
-if sys.version_info < (3, 7):
-    sys.exit("Python 3.7 or newer is needed.")
+if sys.version_info < (3, 8):
+    sys.exit("Python 3.8 or newer is needed.")
 
 from earthpy.cli import main
 

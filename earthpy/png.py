@@ -1,10 +1,8 @@
-"""DXT1 -> RGB -> PNG, same pixels and bytes as the webapp's converter (png.js / texture.rs)."""
+"""DXT1 -> RGB -> PNG, same pixels as the webapp's converter (png.js / texture.rs)."""
 
 import math
 import struct
 import zlib
-
-from . import zrs
 
 
 def _rnd(x):
@@ -76,15 +74,15 @@ def _chunk(kind, data):
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
 
 
-def png_from_dxt1(data, w, h, exact=True):
-    """PNG (RGB, 8 bit, no filters) of a DXT1 texture, rows flipped (atlases are bottom row first).
-    exact=True compresses like the webapp's native converter (zlib-rs via flate2, level 6);
-    exact=False uses Python's zlib at level 6: same pixels, different (and faster) compression."""
+def png_from_dxt1(data, w, h):
+    """PNG (RGB, 8 bit, no filters, zlib level 6) of a DXT1 texture, rows flipped (atlases are
+    bottom row first). Same pixels as the webapp's; the compressed bytes differ (Python's zlib
+    instead of zlib-rs)."""
     rows = dxt1_to_rgb_rows(data, w, h)
     raw = bytearray()
     for y in range(h - 1, -1, -1):
         raw.append(0)
         raw += rows[y]
-    idat = zrs.compress(raw) if exact else zlib.compress(bytes(raw), 6)
+    idat = zlib.compress(bytes(raw), 6)
     ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)
     return b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", ihdr) + _chunk(b"IDAT", idat) + _chunk(b"IEND", b"")

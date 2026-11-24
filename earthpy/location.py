@@ -1,12 +1,16 @@
 """location.json, footprint.geojson and README.txt (port of re/exporter/lib/location-info.js)."""
 
+import json
 import math
 import os
 from datetime import datetime, timezone
 
-from . import jsfmt, v8math
 from .octant import box_of_path
-from .tileset import _js_max, _js_min
+
+
+def js_round(x):
+    """Math.round (halves round up)."""
+    return int(math.floor(x + 0.5))
 
 
 def iso_now():
@@ -22,10 +26,10 @@ def write_location_info(out_dir, paths, extra=None, readme_files=()):
         if b:
             tiles.append({"path": p, "level": len(p), "box": b})
     b = {
-        "north": _js_max(*[t["box"]["n"] for t in tiles]),
-        "south": _js_min(*[t["box"]["s"] for t in tiles]),
-        "east": _js_max(*[t["box"]["e"] for t in tiles]),
-        "west": _js_min(*[t["box"]["w"] for t in tiles]),
+        "north": max(t["box"]["n"] for t in tiles),
+        "south": min(t["box"]["s"] for t in tiles),
+        "east": max(t["box"]["e"] for t in tiles),
+        "west": min(t["box"]["w"] for t in tiles),
     }
     center = {"lat": (b["north"] + b["south"]) / 2, "lon": (b["east"] + b["west"]) / 2}
     counts = {}
@@ -35,13 +39,13 @@ def write_location_info(out_dir, paths, extra=None, readme_files=()):
     R = 6371008.8
     rad = math.pi / 180
     height_m = (b["north"] - b["south"]) * rad * R
-    width_m = (b["east"] - b["west"]) * rad * R * v8math.cos(center["lat"] * rad)
+    width_m = (b["east"] - b["west"]) * rad * R * math.cos(center["lat"] * rad)
 
     info = {
         "description": "Area covered by this model: the union of the listed tiles (lat/lon rectangles, WGS84 degrees).",
         "bounds": b,
         "center": center,
-        "approxSizeMeters": {"width": jsfmt.js_round(width_m), "height": jsfmt.js_round(height_m)},
+        "approxSizeMeters": {"width": js_round(width_m), "height": js_round(height_m)},
         "tileCount": len(tiles),
         "tilesPerLevel": levels,
         "generated": iso_now(),
@@ -51,7 +55,7 @@ def write_location_info(out_dir, paths, extra=None, readme_files=()):
     }
     for k, v in (extra or {}).items():  # Object.assign: existing keys keep their place
         info[k] = v
-    _write(os.path.join(out_dir, "location.json"), jsfmt.stringify(info, 2))
+    _write(os.path.join(out_dir, "location.json"), json.dumps(info, indent=2, ensure_ascii=False))
 
     geo = {
         "type": "FeatureCollection",
@@ -66,17 +70,16 @@ def write_location_info(out_dir, paths, extra=None, readme_files=()):
             },
         } for t in tiles],
     }
-    _write(os.path.join(out_dir, "footprint.geojson"), jsfmt.stringify(geo))
+    _write(os.path.join(out_dir, "footprint.geojson"), json.dumps(geo, separators=(",", ":"), ensure_ascii=False))
 
     def f(n):
-        return jsfmt.js_to_fixed(n, 6)
-    n = jsfmt.js_num
+        return "%.6f" % n
     lines = [
         "Earth model export",
         "",
         "Covers:   lat %s to %s, lon %s to %s  (WGS84)" % (f(b["south"]), f(b["north"]), f(b["west"]), f(b["east"])),
         "Centre:   %s, %s" % (f(center["lat"]), f(center["lon"])),
-        "Size:     about %s m x %s m" % (n(jsfmt.js_round(width_m)), n(jsfmt.js_round(height_m))),
+        "Size:     about %d m x %d m" % (js_round(width_m), js_round(height_m)),
         "Tiles:    %d (%s)" % (len(tiles), ", ".join("L%s x%d" % (l, levels[l]) for l in levels)),
         "Map link: https://www.openstreetmap.org/?mlat=%s&mlon=%s#map=16/%s/%s"
         % (f(center["lat"]), f(center["lon"]), f(center["lat"]), f(center["lon"])),

@@ -16,7 +16,9 @@ import time
 import zipfile
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
-from . import decode, glb, jsfmt, location, tileset
+import json
+
+from . import decode, glb, location, tileset
 from .library import Library, write_atomic
 from .octant import box_of_path
 
@@ -240,13 +242,13 @@ def fix_no_geometry(targets, lib, rt, limiter, cancel):
 # ------------------------------------------------------------------ conversion (glb-cache.js)
 
 def _convert_worker(job):
-    cache_root, p, exact = job
+    cache_root, p = job
     try:
         lib = Library(cache_root)
         raw = lib.read(p)
         if raw is None:
             return p, "missing", "Tile %s is no longer in the library" % p
-        r = glb.convert_raw_with(raw, p, lib.read, exact)
+        r = glb.convert_raw_with(raw, p, lib.read)
         if isinstance(r, str):
             for f in (lib.glb_file(p), lib.meta_file(p)):
                 try:
@@ -261,7 +263,7 @@ def _convert_worker(job):
         return p, "failed", _err(e)
 
 
-def convert(paths, lib, jobs, exact, force=(), cancel=None):
+def convert(paths, lib, jobs, force=(), cancel=None):
     """Make sure every tile is in the GLB cache. Returns (skipped [(path, reason)], failures {path: error})."""
     force = set(force)
     todo = [p for p in paths if p in force or not lib.glb_cached(p)]
@@ -273,7 +275,7 @@ def convert(paths, lib, jobs, exact, force=(), cancel=None):
     prog.show(done, force=True)
     jobs = max(1, min(jobs, len(todo)))
     if jobs == 1:
-        results = (_convert_worker((lib.root, p, exact)) for p in todo)
+        results = (_convert_worker((lib.root, p)) for p in todo)
         for p, status, info in results:
             done += 1
             if status == "skipped":
@@ -285,7 +287,7 @@ def convert(paths, lib, jobs, exact, force=(), cancel=None):
                 break
     else:
         with ProcessPoolExecutor(max_workers=jobs) as ex:
-            futs = [ex.submit(_convert_worker, (lib.root, p, exact)) for p in todo]
+            futs = [ex.submit(_convert_worker, (lib.root, p)) for p in todo]
             try:
                 for f in as_completed(futs):
                     p, status, info = f.result()
@@ -327,11 +329,10 @@ def export_small_zip(paths, lib, out_dir, skipped):
             raise RuntimeError("Every tile was left out: they have no textured geometry and no usable ancestor tile in the library.")
         metas = {}
         for p in sorted_paths:
-            import json
             with open(lib.meta_file(p), "r", encoding="utf-8") as fh:
                 metas[p] = json.load(fh)
         ts = tileset.build_tileset(sorted_paths, lambda p: metas[p])
-        location._write(os.path.join(out, "tileset.json"), jsfmt.stringify(ts))
+        location._write(os.path.join(out, "tileset.json"), json.dumps(ts, separators=(",", ":"), ensure_ascii=False))
         location.write_location_info(out, sorted_paths, extra={
             "format": "3D Tiles 1.1 (one GLB per tile)",
             "coordinates": "WGS84 ECEF metres (tileset transforms); Google sphere positions re-projected onto WGS84.",
