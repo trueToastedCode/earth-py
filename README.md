@@ -29,6 +29,20 @@ python3 earth_py.py my.workflow.json proxies.txt            # with SOCKS5 proxie
 python3 earth_py.py my.workflow.json --proxies proxies.txt --out ~/Desktop/exports
 ```
 
+To get a list of working free proxies, use `tools/check_socks5.py`. It loads the SOCKS5 list from
+[proxifly/free-proxy-list](https://github.com/proxifly/free-proxy-list) and keeps only proxies
+that pass its own checks: a real HTTPS request with a verified certificate, a stable exit IP that
+isn't yours, and low latency over several rounds. For example:
+
+```bash
+python3 tools/check_socks5.py --min-success 5 --rounds 20
+python3 earth_py.py my.workflow.json working_socks5.txt
+```
+
+It writes `working_socks5.txt` (one proxy per line, ready for earth-py) and
+`working_socks5_analysis.csv` (details per proxy) to the current folder. Free proxies come and go,
+so run it again shortly before a large download.
+
 With proxies, run `ulimit -n 8192` in the same Terminal window first, otherwise macOS's limit of
 256 open files can make downloads fail (see [Open files limit](#open-files-limit-important-with-many-proxies)).
 

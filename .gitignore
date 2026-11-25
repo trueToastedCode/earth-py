@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
+working_socks5.txt
+working_socks5_analysis.csv
