@@ -177,7 +177,8 @@ def main(argv=None):
         print("  %s (%d tiles, %s)" % (zip_path, len(exported), "%.1f KB" % (size / 1024)))
         print("\nDone in %s. To fill tiles/ after unzipping, run in the unzipped folder:" % pipeline._fmt_dur(time.time() - t_start))
         project = os.path.dirname(lib.root) if os.path.basename(lib.root) == "library" else lib.glb_dir
-        print("  ./fill-tiles.sh %s" % _quote(project))
+        print("  ./fill-tiles.sh --link %s" % _quote(project))
+        print("(symlinks into the cache; leave out --link to copy the tiles into a standalone folder)")
         print("(The README in the ZIP names ~/Downloads/earth-rea, like the webapp's export; use the path above.)")
         return 0
     except KeyboardInterrupt:

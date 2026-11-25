@@ -35,13 +35,19 @@ With proxies, run `ulimit -n 8192` in the same Terminal window first, otherwise 
 Then unzip the export and fill `tiles/` from this folder's cache (the command is printed at the end):
 
 ```bash
-cd earth-3dtiles-xxxxxxxx && ./fill-tiles.sh ~/Desktop/earth-py
+cd earth-3dtiles-xxxxxxxx && ./fill-tiles.sh --link ~/Desktop/earth-py
 ```
 
-`fill-tiles.sh` is the webapp's script unchanged. It finds the cache in `<folder>/library/glb-v2`,
-and uses APFS clones on macOS (instant, no extra space). `--link` creates symlinks instead.
-The README inside the ZIP names `~/Downloads/earth-rea` like the webapp's. When the tiles come
-from earth-py, pass the earth-py folder instead.
+`--link` fills `tiles/` with symlinks into earth-py's cache: instant and no extra space. The
+folder then only works on this computer, and only while the cache still has the tiles.
+
+Leave `--link` out to get a standalone folder that you can move, zip or share. Every GLB is then
+copied into it: as clones on APFS (macOS) and Btrfs/XFS (Linux), which take no extra space until
+a file changes, and as plain copies on other disks.
+
+`fill-tiles.sh` is the webapp's script unchanged and works the same on macOS and Linux. It finds
+the cache in `<folder>/library/glb-v2`. The README inside the ZIP names `~/Downloads/earth-rea`
+like the webapp's. When the tiles come from earth-py, pass the earth-py folder instead.
 
 ## What it does
 
