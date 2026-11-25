@@ -177,4 +177,65 @@ happen in the cases tested.
 | `earthpy/templates/fill-tiles.sh` | copied unchanged from the webapp |
 | `tools/compare_with_webapp.py` | comparison with the webapp's output |
 
-The data belongs to Google; check Google's terms before using or sharing it.
+## Legal notice and disclaimer
+
+**Not affiliated with Google.** earth-py is an independent, unofficial project. It is not
+affiliated with, endorsed by or sponsored by Google LLC. "Google" and "Google Earth" are
+trademarks of Google LLC. The tile service earth-py talks to is undocumented and not a public
+API; it can change, block requests or stop working at any time.
+
+**The data isn't yours.** The imagery, 3D models and other content earth-py downloads belong to
+Google and its data providers, and are protected by copyright and other rights. earth-py gives
+you no rights to that content. Downloading, storing, converting, displaying and sharing it is
+governed by:
+
+- the [Google Terms of Service](https://policies.google.com/terms);
+- the [Google Earth Additional Terms of Service](https://www.google.com/help/terms_maps-earth/),
+  which, at the time of writing, prohibit among other things to "mass download or create bulk
+  feeds of the content", and allow public display only with proper attribution.
+
+Using this tool can therefore breach these terms. Before using it, read the current versions
+of these terms yourself and follow them, including the attribution requirements. You're also
+responsible for following the laws that apply to you, for example on copyright, database
+rights, computer misuse and data protection.
+
+**Proxies and request limits.** The request limits are there to keep the load on the service
+low. The proxy support spreads requests over connections you're allowed to use. Neither is
+meant to get around access restrictions, rate limits or blocks, and you must not use them for
+that. Using proxies you aren't authorised to use, or getting around technical protection
+measures, can be unlawful. Free public proxies are run by unknown parties, who can see and log
+your traffic.
+
+**Personal and research use only.** earth-py is meant for personal, non-commercial research and
+learning, such as studying the data format. Don't use exported content commercially, publish
+it, redistribute it, or build products or services on it, unless you hold the necessary rights.
+
+**No warranty, no liability.** earth-py is provided "as is", without warranty of any kind,
+express or implied. That includes merchantability, fitness for a particular purpose,
+non-infringement and accuracy.
+
+Positions and heights can be wrong. For example, Google's sphere is converted to WGS84 only
+approximately. Don't use the output for navigation, surveying, engineering, safety-critical or
+legal purposes.
+
+To the fullest extent permitted by law, the authors and contributors aren't liable for any
+claim, damage or other liability arising from the use of earth-py or the inability to use it.
+That covers direct, indirect, incidental and consequential damage. It includes:
+
+- blocked accounts or IP addresses;
+- claims by third parties;
+- costs;
+- lost data.
+
+You use earth-py at your own risk and are solely responsible for how you use it and for what
+you do with the downloaded content.
+
+**Third-party code.**
+- The crunch texture decoder (`earthpy/crn.py`) is a port of Binomial's `crn_decomp.h`, which is
+  in the public domain.
+- The decoding approach builds on
+  [retroplasma/earth-reverse-engineering](https://github.com/retroplasma/earth-reverse-engineering);
+  see that project for its terms.
+
+**Not legal advice.** This notice is not legal advice. If you're unsure whether your use is
+allowed, ask a lawyer.
